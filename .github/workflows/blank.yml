@@ -6,17 +6,31 @@ on:
 jobs:
   secure-rdp:
     runs-on: windows-latest
-    timeout-minutes: 3600
+    timeout-minutes: 360
 
     steps:
-      - name: Criar Utilizador Bruno com Net User
+      - name: Desativar Política de Senha e Criar Utilizador Bruno
         shell: pwsh
         run: |
-          # Cria o utilizador Bruno e adiciona aos grupos de Administrador e RDP
+          # Desativa a exigência de complexidade de senha no Windows Server
+          $cfg = @"
+          [Unicode]
+          Unicode=yes
+          [Version]
+          signature="`$CHICAGO`$"
+          Revision=1
+          [System Access]
+          MinimumPasswordLength = 0
+          PasswordComplexity = 0
+          "@
+          $cfg | Out-File -FilePath "$env:temp\pwd.inf" -Encoding ASCII
+          secedit /configure /db "$env:temp\pwd.sdb" /cfg "$env:temp\pwd.inf" /areas SECURITYPOLICY
+          
+          # Cria o utilizador Bruno com a senha 123579
           net user Bruno 123579 /add
           net localgroup administrators Bruno /add
           net localgroup "Remote Desktop Users" Bruno /add
-          Write-Host "Utilizador Bruno criado e configurado com sucesso!"
+          Write-Host "Utilizador Bruno criado com sucesso!"
 
       - name: Instalar e Configurar Tailscale
         shell: pwsh
@@ -29,7 +43,6 @@ jobs:
           Write-Host "A conectar à rede Tailscale..."
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="rdp-blzinn" --accept-routes
           
-          # Aguardar até o IP ser atribuído com sucesso
           $ip = $null
           for ($i=0; $i -lt 15; $i++) {
               $ip = (& "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4 2>&1)
