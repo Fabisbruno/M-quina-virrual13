@@ -9,18 +9,14 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Criar Utilizador Bruno e Palavra-passe
+      - name: Criar Utilizador Bruno com Net User
         shell: pwsh
         run: |
-          $Password = ConvertTo-SecureString "123579" -AsPlainText -Force
-          
-          New-LocalUser "Bruno" -Password $Password -FullName "Bruno RDP" -Description "Utilizador RDP" -ErrorAction SilentlyContinue
-          Set-LocalUser -Name "Bruno" -Password $Password -ErrorAction SilentlyContinue
-          
-          Add-LocalGroupMember -Group "Administrators" -Member "Bruno" -ErrorAction SilentlyContinue
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Bruno" -ErrorAction SilentlyContinue
-          
-          Write-Host "Conta Bruno configurada com sucesso!"
+          # Cria o utilizador Bruno e adiciona aos grupos de Administrador e RDP
+          net user Bruno 123579 /add
+          net localgroup administrators Bruno /add
+          net localgroup "Remote Desktop Users" Bruno /add
+          Write-Host "Utilizador Bruno criado e configurado com sucesso!"
 
       - name: Instalar e Configurar Tailscale
         shell: pwsh
