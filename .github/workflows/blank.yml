@@ -1,42 +1,42 @@
-name: RDP persistente
+name: RDP assistente
 
 on:
   workflow_dispatch:
 
 jobs:
   secure-rdp:
-    # Runner self-hosted instalado na máquina Windows persistente.
-    runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 10
+    runs-on: windows-latest
+    timeout-minutes: 360
 
     steps:
-      - name: Verificar pré-requisitos do RDP e Tailscale
+      - name: Instalar e Configurar Tailscale
         shell: pwsh
         run: |
-          $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe"
+          # Instala o Tailscale de forma silenciosa na VM do GitHub
+          winget install --id Tailscale.Tailscale -e --silent --accept-package-agreements --accept-source-agreements
+          
+          # Inicia o Tailscale e define o nome fixo da máquina na sua rede
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="rdp-blzinn" --accept-routes
+          
+          # Confirma e exibe o IP atribuído no registo
+          $ip = (& "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4)
+          Write-Host "Tailscale ligado com sucesso! IP atual: $ip"
 
-          if (-not (Test-Path $tailscale)) {
-            throw "Tailscale não está instalado neste host."
-          }
-
-          $ip = (& $tailscale ip -4 | Select-Object -First 1).Trim()
-          if (-not $ip) {
-            throw "Este host não está conectado ao Tailscale. Conecte-o uma vez e mantenha a identidade do dispositivo."
-          }
-
-          $rdp = Get-Service -Name TermService -ErrorAction Stop
-          if ($rdp.Status -ne "Running") {
-            Start-Service -Name TermService
-          }
-
-          "TAILSCALE_IP=$ip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "Host conectado ao Tailscale: $ip"
-
-      - name: Exibir instruções de conexão
+      - name: Ativar Área de Trabalho Remota (RDP)
         shell: pwsh
         run: |
-          Write-Host "Endereço RDP (IP Tailscale): $env:TAILSCALE_IP"
-          Write-Host "Usuário: Blzinn"
-          Write-Host "Conecte pelo cliente de Área de Trabalho Remota."
-          Write-Host "A conta Blzinn deve existir no Windows e ter permissão para RDP."
+          # Permite ligações RDP e ajusta o Firewall do Windows
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Write-Host "Servidor RDP ativado!"
+
+      - name: Manter o Servidor Ligado
+        shell: pwsh
+        run: |
+          Write-Host "=========================================="
+          Write-Host "Servidor online e pronto a conectar!"
+          Write-Host "Nome para conectar no RDP: rdp-blzinn"
+          Write-Host "=========================================="
+          while ($true) { Start-Sleep -Seconds 60 }
           
