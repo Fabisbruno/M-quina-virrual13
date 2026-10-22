@@ -1,38 +1,42 @@
-name: Reiniciar VM Windows
+name: RDP persistente
 
 on:
   workflow_dispatch:
 
 jobs:
-  reiniciar-vm:
-    # Runner self-hosted instalado no host Windows com Hyper-V.
+  secure-rdp:
+    # Runner self-hosted instalado na máquina Windows persistente.
     runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 10
 
     steps:
-      - name: Verificar usuário local no host
+      - name: Verificar pré-requisitos do RDP e Tailscale
         shell: pwsh
         run: |
-          $username = "Blzinn"
-          $user = Get-LocalUser -Name $username -ErrorAction SilentlyContinue
+          $tailscale = "$env:ProgramFiles\Tailscale\tailscale.exe"
 
-          if ($null -eq $user) {
-            Write-Error "O usuário local '$username' não existe no host Windows."
-            exit 1
+          if (-not (Test-Path $tailscale)) {
+            throw "Tailscale não está instalado neste host."
           }
 
-          Write-Host "Usuário encontrado: $($user.Name)"
+          $ip = (& $tailscale ip -4 | Select-Object -First 1).Trim()
+          if (-not $ip) {
+            throw "Este host não está conectado ao Tailscale. Conecte-o uma vez e mantenha a identidade do dispositivo."
+          }
 
-      - name: Iniciar VM se estiver parada
+          $rdp = Get-Service -Name TermService -ErrorAction Stop
+          if ($rdp.Status -ne "Running") {
+            Start-Service -Name TermService
+          }
+
+          "TAILSCALE_IP=$ip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Host conectado ao Tailscale: $ip"
+
+      - name: Exibir instruções de conexão
         shell: pwsh
         run: |
-          $vmName = "Windows-GitHub"
-          $vm = Get-VM -Name $vmName -ErrorAction Stop
-
-          if ($vm.State -ne "Running") {
-            Start-VM -Name $vmName
-          }
-
-          Get-VM -Name $vmName |
-            Select-Object Name, State, CPUUsage, MemoryAssigned |
-            Format-Table -AutoSize
-            
+          Write-Host "Endereço RDP (IP Tailscale): $env:TAILSCALE_IP"
+          Write-Host "Usuário: Blzinn"
+          Write-Host "Conecte pelo cliente de Área de Trabalho Remota."
+          Write-Host "A conta Blzinn deve existir no Windows e ter permissão para RDP."
+          
