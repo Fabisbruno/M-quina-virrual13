@@ -11,22 +11,13 @@ jobs:
     steps:
       - name: Configurar configuracoes principais do RDP 
         run: | 
-          # Habilitar Area de Trabalho Remota e desabilitar Autenticacao em Nível de Rede 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' ` 
-                             -Name "fDenyTSConnections" -Value 0 -Force 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' ` 
-                             -Name "UserAuthentication" -Value 0 -Force 
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' ` 
-                             -Name "SecurityLayer" -Value 0 -Force 
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force 
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force 
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force 
 
-          # Remover regra de firewall existente para evitar duplicação 
           netsh advfirewall firewall delete rule name="RDP-Tailscale" 
-          
-          # Permitir conexões de entrada na porta 3389 
-          netsh advfirewall firewall add rule name="RDP-Tailscale" ` 
-            dir=in action=allow protocol=TCP localport=3389 
+          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389 
 
-          # Reiniciar o serviço de Área de Trabalho Remota 
           Restart-Service -Name TermService -Force 
 
       - name: Criar Usuário RDP com Senha Segura 
@@ -46,7 +37,6 @@ jobs:
           $password = -join ($rawPassword | Sort-Object { Get-Random }) 
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force 
           
-          # Remove usuário anterior se existir por segurança
           try { Remove-LocalUser -Name "RDP" -ErrorAction SilentlyContinue } catch {}
           
           New-LocalUser -Name "RDP" -Password $securePass -AccountNeverExpires 
@@ -69,7 +59,6 @@ jobs:
 
       - name: Verificar Acessibilidade RDP 
         run: | 
-          # Captura o IP atual atribuído pelo Tailscale nesta execução
           $tsIP = tailscale ip -4
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
