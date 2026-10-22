@@ -1,0 +1,38 @@
+name: Reiniciar VM Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  reiniciar-vm:
+    # Runner self-hosted instalado no host Windows com Hyper-V.
+    runs-on: [self-hosted, Windows, X64]
+
+    steps:
+      - name: Verificar usuário local no host
+        shell: pwsh
+        run: |
+          $username = "Blzinn"
+          $user = Get-LocalUser -Name $username -ErrorAction SilentlyContinue
+
+          if ($null -eq $user) {
+            Write-Error "O usuário local '$username' não existe no host Windows."
+            exit 1
+          }
+
+          Write-Host "Usuário encontrado: $($user.Name)"
+
+      - name: Iniciar VM se estiver parada
+        shell: pwsh
+        run: |
+          $vmName = "Windows-GitHub"
+          $vm = Get-VM -Name $vmName -ErrorAction Stop
+
+          if ($vm.State -ne "Running") {
+            Start-VM -Name $vmName
+          }
+
+          Get-VM -Name $vmName |
+            Select-Object Name, State, CPUUsage, MemoryAssigned |
+            Format-Table -AutoSize
+            
