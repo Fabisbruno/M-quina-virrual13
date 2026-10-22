@@ -6,37 +6,47 @@ on:
 jobs:
   secure-rdp:
     runs-on: windows-latest
-    timeout-minutes: 99999999999
+    timeout-minutes: 3600
 
     steps:
+      - name: Criar Utilizador Bruno e Palavra-passe
+        shell: pwsh
+        run: |
+          $Password = ConvertTo-SecureString "123579" -AsPlainText -Force
+          
+          New-LocalUser "Bruno" -Password $Password -FullName "Bruno RDP" -Description "Utilizador RDP" -ErrorAction SilentlyContinue
+          Set-LocalUser -Name "Bruno" -Password $Password -ErrorAction SilentlyContinue
+          
+          Add-LocalGroupMember -Group "Administrators" -Member "Bruno" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Bruno" -ErrorAction SilentlyContinue
+          
+          Write-Host "Conta Bruno configurada com sucesso!"
+
       - name: Instalar e Configurar Tailscale
         shell: pwsh
         run: |
-          # Instala o Tailscale de forma silenciosa na VM do GitHub
           winget install --id Tailscale.Tailscale -e --silent --accept-package-agreements --accept-source-agreements
-          
-          # Inicia o Tailscale e define o nome fixo da máquina na sua rede
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="rdp-blzinn" --accept-routes
           
-          # Confirma e exibe o IP atribuído no registo
           $ip = (& "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4)
-          Write-Host "Tailscale ligado com sucesso! IP atual: $ip"
+          Write-Host "Tailscale ligado! IP atual: $ip"
 
       - name: Ativar Área de Trabalho Remota (RDP)
         shell: pwsh
         run: |
-          # Permite ligações RDP e ajusta o Firewall do Windows
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Write-Host "Servidor RDP ativado!"
+          Write-Host "RDP ativado com sucesso!"
 
-      - name: Manter o Servidor Ligado
+      - name: Manter o Servidor Ligado e Mostrar Credenciais
         shell: pwsh
         run: |
           Write-Host "=========================================="
-          Write-Host "Servidor online e pronto a conectar!"
-          Write-Host "Nome para conectar no RDP: rdp-blzinn"
+          Write-Host " Servidor online e pronto a conectar!    "
+          Write-Host " Endereço (Hostname): rdp-blzinn          "
+          Write-Host " Nome de Utilizador: Bruno                "
+          Write-Host " Palavra-passe: 123579                    "
           Write-Host "=========================================="
           while ($true) { Start-Sleep -Seconds 60 }
           
